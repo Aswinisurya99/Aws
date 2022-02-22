@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This test template will provision EC2 Instance
+Parameters:
+  KeyNameParameter:
+    Description: Select the Key Name
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    Default: ashnew
+  InstanceTypeParameter:
+    Type: String
+    Default: t2.micro
+    AllowedValues: [ m3.large, m3.xlarge, m3.2xlarge, t2.micro ]
+    Description: Choose the instance size
+  OSDriveSize:
+    Type: String
+    Description: Windows OS Size based on Instance Type.
+  AppDriveSize:
+    Type: String
+    Description: Choose the drive size(Data/App) from the list
+    Default: 2
+    AllowedValues:
+      - 2
+      - 4
+      - 10
+  VPCId:
+    Type: 'AWS::EC2::VPC::Id'
+    Description: Select the VPC
+    Default: vpc-67252701
+
+  ImageID:
+    Type: String
+    Description: Please enter the AMI ID
+
+  EC2InstanceName:
+    Type: String
+    Description: Please enter the instance name
+    Default: server1
+  Subnet1:
+    Description: Select the Subnet corrosponding to availability zone
+    Type: 'AWS::EC2::Subnet::Id'
+    Default: <subnet1-id>
+  OSType:
+    Description: Operating System type
+    Type: String
+    AllowedValues:
+      - AmazonLinux2
+      - RHEL7
+      - Windows2016
+      - Windows2019
+    ConstraintDescription: Select a valid Operating System.
+
+Conditions:
+  T2SeriesTrue: !Or 
+    - !Equals 
+      - !Ref OSType
+      - AmazonLinux2
+    - !Equals 
+      - !Ref OSType
+      - OEL7
+    - !Equals 
+      - !Ref OSType
+      - RHEL7
+  T3SeriesTrue: !Or 
+    - !Equals 
+      - !Ref OSType
+      - Windows2016
+    - !Equals 
+      - !Ref OSType
+      - Windows2019
+Resources:
+  EC2Linux:
+    Type: 'AWS::EC2::Instance'
+    Condition: T2SeriesTrue
+    Properties:
+      KeyName: !Ref KeyNameParameter
+      ImageId: !Ref ImageID
+      InstanceType: !Ref InstanceTypeParameter
+      SubnetId: !Ref Subnet1
+      #IamInstanceProfile: cloudwatch-event-role
+      Tags:
+        - Key: Name
+          Value: !Ref EC2InstanceName
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: '30'
+            DeleteOnTermination: 'True'
+            Encrypted: 'true'
+            VolumeType: gp3
+        - DeviceName: /dev/xvdb
+          Ebs:
+            VolumeSize: !Ref AppDriveSize
+            DeleteOnTermination: 'True'
+            Encrypted: 'true'
+            VolumeType: gp3
+      UserData: !Base64 
+        'Fn::Join':
+          - ''
+          - - |
+              #!/bin/bash -ex
+            - |
+              yum update -y
+            - |
+              yum install httpd -y
+            - |
+              service httpd restart
+            - |
+              chkconfig httpd on
+            - |
+              systemctl enable httpd
+            - |
+              systemctl disable httpd
+            - >
+              my=$(lsblk -o NAME,FSTYPE -dsn | awk '$2 == "" {print $1}') &&
+              mkdir /mnt/$my && mkfs -t ext4 /dev/$my && echo "/dev/$my      
+              /mnt/$my  ext4    defaults,nofail 0       2" >> /etc/fstab &&
+              mount -a
+            - 'reboot '
+  EC2Windows:
+    Type: 'AWS::EC2::Instance'
+    Condition: T3SeriesTrue
+    Properties:
+      KeyName: !Ref KeyNameParameter
+      ImageId: !Ref ImageID
+      InstanceType: !Ref InstanceTypeParameter
+      SubnetId: !Ref Subnet1
+      #IamInstanceProfile: cloudwatch-event-role
+      Tags:
+        - Key: Name
+          Value: !Ref EC2InstanceName
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !Ref OSDriveSize
+            DeleteOnTermination: 'False'
+            Encrypted: 'true'
+            VolumeType: gp3
+        - DeviceName: /dev/sdb
+          Ebs:
+            VolumeSize: !Ref AppDriveSize
+            DeleteOnTermination: 'False'
+            Encrypted: 'true'
+            VolumeType: gp3
+        - DeviceName: /dev/sdk
+          NoDevice: {}
+      UserData: !Base64 
+        'Fn::Join':
+          - ''
+          - - |
+              #!/bin/bash -ex 
+            - |
+              nuget install Newtonsoft.Json -OutputDirectory packages
+            - |
+              nuget install packages.config -OutputDirectory packages 
+            - |
+              nuget install Newtonsoft.Json -Version 12.0.1 
+            - |
+              nuget list -Source C:\Users\username\source\repos\MyProject\packages
+            - |
+              systemctl enable nuget
+            - |
+              systemctl disable nuget 
+            - >
+              my=$(lsblk -o NAME,FSTYPE -dsn | awk '$2 == "" {print $1}') &&
+              mkdir /mnt/$my && mkfs -t ext4 /dev/$my && echo "/dev/$my      
+              /mnt/$my  ext4    defaults,nofail 0       2" >> /etc/fstab &&
+              mount -a
+            - 'reboot '
+      

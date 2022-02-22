@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Metadata:
+  License: Apache-2.0
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+    Default: ashnew
+  InstanceType:
+    Description: WebServer EC2 instance type
+    Type: String
+    Default: t2.micro
+    AllowedValues: [t1.micro, t2.nano, t2.micro, t2.small, t2.medium]
+    ConstraintDescription: Must be a valid EC2 instance type.
+  VPC:
+    Description: Select VPC.
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-0f033d2d7417591d6
+  Subnet:
+    Description: Private Subnet to Deploy Docker MFA.
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b771ab8e9be5a65b
+
+  AccessSecurityGroup:
+    Description: Security Group That Allows Instance to Instance Access.
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-0885103247ae6fcfd
+
+  EnvironmentType:
+    Description: The environment type
+    Type: String
+    AllowedValues:
+        - windows
+        - linux
+   
+Mappings:
+ RegionMap: 
+    us-east-1:
+      windows: ami-0c19f80dba70861db
+      linux: ami-033b95fb8079dc481
+    us-west-1: 
+      windows: ami-0dfc3da39bb6f571c
+      linux: ami-0573b70afecda915d
+    eu-west-1:
+      windows: ami-08c78f444b967adf8
+      linux: ami-09d5dd12541e69077
+    ap-northeast-1:
+      windows : ami-0c068f008ea2bdaa1
+      linux : ami-08a8688fb7eacb171
+    ap-southeast-1:
+      windows  : ami-0da930e66ef2fc2e0
+      linux: ami-02a45d709a415958a 
+     
+Resources:
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      ImageId: !FindInMap [RegionMap, !Ref "AWS::Region", !Ref EnvironmentType]
+      Tags:
+      - Key: Name
+        Value: My-Instance
+      NetworkInterfaces:
+      - GroupSet:
+        - Ref: AccessSecurityGroup
+        AssociatePublicIpAddress: 'true'
+        DeviceIndex: '0'
+        DeleteOnTermination: 'true'
+        SubnetId:
+          Ref: Subnet
+Outputs:
+  InstanceId:
+    Description: InstanceId of the newly created EC2 instance
+    Value: !Ref 'EC2Instance'
+  AZ:
+    Description: Availability Zone of the newly created EC2 instance
+    Value: !GetAtt [EC2Instance, AvailabilityZone]
+  PublicDNS:
+    Description: Public DNSName of the newly created EC2 instance
+    Value: !GetAtt [EC2Instance, PublicDnsName]
+  PublicIP:
+    Description: Public IP address of the newly created EC2 instance
+    Value: !GetAtt [EC2Instance, PublicIp]
